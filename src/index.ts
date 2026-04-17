@@ -1,58 +1,24 @@
-import { connect, JSONCodec } from 'nats';
 import { envs } from './config/envs.js';
-import type { IEmailPayload } from './interfaces/email.interface.js';
-import { MailerService } from './services/mailer.service.js';
+import { NodemailerSender } from './infrastructure/mailer/nodemailer-sender.service.js';
+import { SendEmailUseCase } from './core/use-cases/send-email.use-case.js';
+import { NatsAdapter } from './infrastructure/nats/nats-server.transport.js';
 
-const jc = JSONCodec<IEmailPayload>();
-const mailer = new MailerService();
+async function bootstrap() {
+  // 1. Dependencias de Infraestructura
+  const mailerSender = new NodemailerSender();
 
-async function start() {
-    try {
-        const nc = await connect({ 
-            servers: envs.natsServers,
-            name: 'Email-Service-Worker'
-        });
-        
-        console.log(`🚀 Email Service connected to NATS: ${nc.getServer()}`);
+  // 2. Lógica de Negocio (Core)
+  const sendEmailUseCase = new SendEmailUseCase(mailerSender);
 
-        const shutdown = async () => {
-            console.log('\nClosing NATS connection...');
-            await nc.drain();
-            process.exit();
-        };
+  // 3. Adaptador de Entrada (NATS)
+  const natsAdapter = new NatsAdapter(sendEmailUseCase);
 
-        process.on('SIGINT', shutdown);
-        process.on('SIGTERM', shutdown);
+  // 4. Iniciar servicio
+  await natsAdapter.start();
 
-        const sub = nc.subscribe("mail.send", { queue: "email-service-group" });
-        console.log("📥 Worker listening on [mail.send]...");
-
-        for await (const m of sub) {
-            try {
-
-                const data = jc.decode(m.data);
-
-                console.log(`📩 Processing email for: ${data.to}`);
-
-                await mailer.sendEmail(data);
-                
-                if (m.reply) {
-
-                    m.respond(jc.encode({ status: 'sent', to: data.to } as any));
-                }
-            } catch (err) {
-                console.error("❌ Error processing message:", err);
-
-                if (m.reply) {
-                    
-                    m.respond(jc.encode({ status: 'error', message: 'Failed to send email' } as any));
-                }
-            }
-        }
-    } catch (err) {
-        console.error("🚨 Critical error connecting to NATS:", err);
-        process.exit(1);
-    }
+  // Manejo de cierre limpio
+  process.on('SIGINT', () => natsAdapter.close());
+  process.on('SIGTERM', () => natsAdapter.close());
 }
 
-start();
+bootstrap();
