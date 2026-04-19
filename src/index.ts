@@ -8,7 +8,7 @@ async function bootstrap() {
   const mailerSender = new NodemailerSender();
 
   // 2. Lógica de Negocio (Core)
-  const sendEmailUseCase = new SendEmailUseCase(mailerSender);
+  const sendEmailUseCase = new SendEmailUseCase(mailerSender, envs.ownerEmail);
 
   // 3. Adaptador de Entrada (NATS)
   const natsAdapter = new NatsAdapter(sendEmailUseCase);

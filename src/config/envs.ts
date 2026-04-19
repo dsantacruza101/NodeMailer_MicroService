@@ -7,6 +7,7 @@ interface EnvVars {
   SMTP_PORT: number;
   SMTP_USER: string;
   SMTP_PASS: string;
+  OWNER_EMAIL: string;
 }
 
 const envsSchema = joi
@@ -16,6 +17,7 @@ const envsSchema = joi
     SMTP_PORT: joi.number().required(),
     SMTP_USER: joi.string().email().required(),
     SMTP_PASS: joi.string().required(),
+    OWNER_EMAIL: joi.string().email().required(),
   })
   .unknown(true);
 
@@ -36,4 +38,5 @@ export const envs = {
   smtpPort: envVars.SMTP_PORT,
   smtpUser: envVars.SMTP_USER,
   smtpPass: envVars.SMTP_PASS,
+  ownerEmail: envVars.OWNER_EMAIL,
 };

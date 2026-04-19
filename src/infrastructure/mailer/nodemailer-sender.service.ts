@@ -4,17 +4,27 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { envs } from "../../config/envs.js";
 import type { EmailSender } from "../../core/interfaces/email-sender.interface.js";
+import type { EmailPayload } from "../../core/interfaces/email.interface.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const ATTACHMENTS = [
+  { filename: 'email-logo.png',    path: path.resolve(__dirname, '../templates/images/email-logo.png'),    cid: 'logo' },
+  { filename: 'linkedin-icon.png', path: path.resolve(__dirname, '../templates/images/linkedin-icon.png'), cid: 'linkedin' },
+  { filename: 'github-icon.png',   path: path.resolve(__dirname, '../templates/images/github-icon.png'),   cid: 'github' },
+];
+
 export class NodemailerSender implements EmailSender {
   private transporter;
+  private templateCache = new Map<string, string>();
 
   constructor() {
     this.transporter = nodemailer.createTransport({
       host: envs.smtpHost,
       port: envs.smtpPort,
       secure: envs.smtpPort === 465,
+      pool: true,
+      maxConnections: 3,
       auth: {
         user: envs.smtpUser,
         pass: envs.smtpPass,
@@ -22,47 +32,36 @@ export class NodemailerSender implements EmailSender {
     });
   }
 
-  public async send(payload: any): Promise<boolean> {
+  public async send(payload: EmailPayload): Promise<boolean> {
     try {
-      // Si el payload trae un templateName, lo procesamos
-      const htmlBody = payload.template
-        ? this.getHtmlContent(payload.template, payload.params || {})
-        : payload.html;
+      const html = this.getHtmlContent(payload.template, payload.params);
 
       await this.transporter.sendMail({
         from: `"Daniel Santacruz" <${envs.smtpUser}>`,
         to: payload.to,
         subject: payload.subject,
-        text: payload.text,
-        html: htmlBody,
+        html,
+        attachments: ATTACHMENTS,
       });
       return true;
     } catch (error) {
-      console.error("Error enviando correo con template:", error);
+      console.error("Error sending email:", error);
       return false;
     }
   }
 
-  // Método privado para leer el HTML y reemplazar variables
-  private getHtmlContent(
-    templateName: string,
-    replacements: Record<string, string>,
-  ): string {
-    // Ruta hacia la carpeta de templates
-    const templatePath = path.resolve(
-      __dirname,
-      `../templates/${templateName}.html`,
-    );
+  private getHtmlContent(templateName: string, replacements: Record<string, string>): string {
+    let html = this.templateCache.get(templateName);
 
-    if (!fs.existsSync(templatePath)) {
-      throw new Error(`Template ${templateName} not found`);
+    if (!html) {
+      const templatePath = path.resolve(__dirname, `../templates/${templateName}.html`);
+      if (!fs.existsSync(templatePath)) throw new Error(`Template ${templateName} not found`);
+      html = fs.readFileSync(templatePath, "utf8");
+      this.templateCache.set(templateName, html);
     }
 
-    let html = fs.readFileSync(templatePath, "utf8");
-
-    // Reemplazo dinámico: {{name}} -> Daniel
     Object.entries(replacements).forEach(([key, value]) => {
-      html = html.replaceAll(`{{${key}}}`, value);
+      html = html!.replaceAll(`{{${key}}}`, value);
     });
 
     return html;

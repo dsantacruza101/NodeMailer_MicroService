@@ -8,24 +8,25 @@ import type {
 } from 'nats';
 import { envs } from '../../config/envs.js';
 import { SendEmailUseCase } from '../../core/use-cases/send-email.use-case.js';
+import type { ContactPayload } from '../../core/interfaces/contact.interface.js';
 
 export class NatsAdapter {
-  private nc?: NatsConnection;
-  private jc = JSONCodec();
+  private natsConnection?: NatsConnection;
+  private jsonCodec = JSONCodec();
 
   constructor(private readonly sendEmailUseCase: SendEmailUseCase) {}
 
   async start() {
     try {
-      this.nc = await connect({ 
+      this.natsConnection = await connect({ 
         servers: envs.natsServers,
         name: 'Email-Service-Worker' 
       });
       
-      console.log(`🚀 NATS connected: ${this.nc.getServer()}`);
+      console.log(`🚀 NATS connected: ${this.natsConnection.getServer()}`);
 
       // Suscripción al subject
-      const sub = this.nc.subscribe("mail.send", { queue: "email-service-group" });
+      const sub = this.natsConnection.subscribe("mail.send", { queue: "email-service-group" });
       
       this.handleMessages(sub);
 
@@ -36,17 +37,25 @@ export class NatsAdapter {
   }
 
   private async handleMessages(sub: Subscription) {
-    for await (const m of sub) {
+    
+    for await (const mail of sub) {
       try {
-        const payload = this.jc.decode(m.data) as any;
-        console.log(`📩 Message received for: ${payload.to}`);
+        
+        const decoded = this.jsonCodec.decode(mail.data) as any;
+        const contact: ContactPayload = decoded.data ?? decoded;
+        // console.log(`📩 Message received for: ${contact.email}`);
 
-        // Aquí es donde la infraestructura llama al Core
-        const success = await this.sendEmailUseCase.execute(payload);
-
-        if (m.reply) {
-          m.respond(this.jc.encode({ status: success ? 'sent' : 'error' }));
+        // Respond immediately so the gateway is not blocked by SMTP latency
+        if (mail.reply) {
+          mail.respond(this.jsonCodec.encode({ status: 'received' }));
         }
+
+        const start = Date.now();
+        this.sendEmailUseCase.execute(contact).then((success) => {
+          console.log(`✉️  Emails ${success ? 'sent' : 'failed'} in ${Date.now() - start}ms`);
+        }).catch((err) => {
+          console.error('❌ Error sending emails:', err);
+        });
       } catch (err) {
         console.error("❌ Error processing NATS message:", err);
       }
@@ -54,9 +63,9 @@ export class NatsAdapter {
   }
 
   async close() {
-    if (this.nc) {
+    if (this.natsConnection) {
       console.log('Closing NATS connection...');
-      await this.nc.drain();
+      await this.natsConnection.drain();
     }
   }
 }

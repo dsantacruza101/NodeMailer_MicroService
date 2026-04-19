@@ -1,5 +1,5 @@
-import type { IEmailPayload } from "./email.interface.js";
+import type { EmailPayload } from "./email.interface.js";
 
 export interface EmailSender {
-  send(payload: IEmailPayload): Promise<boolean>;
+  send(payload: EmailPayload): Promise<boolean>;
 }
