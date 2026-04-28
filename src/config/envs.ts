@@ -3,6 +3,7 @@ import joi from "joi";
 
 interface EnvVars {
   NATS_SERVERS: string[];
+  NATS_TOKEN: string;
   SMTP_HOST: string;
   SMTP_PORT: number;
   SMTP_USER: string;
@@ -13,6 +14,7 @@ interface EnvVars {
 const envsSchema = joi
   .object({
     NATS_SERVERS: joi.array().items(joi.string()).required(),
+    NATS_TOKEN: joi.string().required(),
     SMTP_HOST: joi.string().required(),
     SMTP_PORT: joi.number().required(),
     SMTP_USER: joi.string().email().required(),
@@ -34,6 +36,7 @@ const envVars: EnvVars = value;
 
 export const envs = {
   natsServers: envVars.NATS_SERVERS,
+  natsToken: envVars.NATS_TOKEN,
   smtpHost: envVars.SMTP_HOST,
   smtpPort: envVars.SMTP_PORT,
   smtpUser: envVars.SMTP_USER,
