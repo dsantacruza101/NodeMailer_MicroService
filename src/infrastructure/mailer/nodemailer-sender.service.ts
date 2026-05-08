@@ -37,7 +37,7 @@ export class NodemailerSender implements EmailSender {
       const html = this.getHtmlContent(payload.template, payload.params);
 
       await this.transporter.sendMail({
-        from: `"Daniel Santacruz" <${envs.smtpUser}>`,
+        from: `"Daniel Santacruz" <${envs.mailFrom}>`,
         to: payload.to,
         subject: payload.subject,
         html,
