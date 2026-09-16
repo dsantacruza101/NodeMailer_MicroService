@@ -18,9 +18,10 @@ export class NatsAdapter {
 
   async start() {
     try {
-      this.natsConnection = await connect({ 
+      this.natsConnection = await connect({
         servers: envs.natsServers,
-        name: 'Email-Service-Worker' 
+        token: envs.natsToken,
+        name: 'Email-Service-Worker'
       });
       
       console.log(`🚀 NATS connected: ${this.natsConnection.getServer()}`);
